@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-router"
+version = "2.0.0"
+authors = [
+  { name="Opendatalab", email="contact@opendatalab.com" },
+]
+description = "纯CPU运行的智能PDF路由组件，支持7类PDF识别，可直接作为Ray Data Mapper使用"
+readme = "README.md"
+license = { file="LICENSE" }
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Filters",
+]
+keywords = ["pdf", "ocr", "document-processing", "ray", "data-processing"]
+requires-python = ">=3.8"
+dependencies = [
+  "pymupdf>=1.20.0",
+]
+dynamic = []
+
+[project.optional-dependencies]
+ray = [
+  "ray>=2.0.0",
+]
+dev = [
+  "pytest>=7.0.0",
+  "pytest-cov>=4.0.0",
+  "black>=23.0.0",
+  "flake8>=6.0.0",
+  "mypy>=1.0.0",
+  "build>=1.0.0",
+  "twine>=4.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/opendatalab/pdf-router"
+"Bug Tracker" = "https://github.com/opendatalab/pdf-router/issues"
+"Documentation" = "https://github.com/opendatalab/pdf-router/blob/main/README.md"
+"Source" = "https://github.com/opendatalab/pdf-router"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pdf_router*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --cov=pdf_router --cov-report=term --cov-report=html"
+cov_fail_under = 80
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+
+[tool.mypy]
+python_version = "3.8"
+strict = true
+ignore_missing_imports = true
