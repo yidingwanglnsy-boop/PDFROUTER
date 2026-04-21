@@ -17,6 +17,7 @@ class PdfTypeMark:
     LOW_QUALITY_SCAN = "low_quality_scan" # 低质量扫描件
     COMPLEX_LAYOUT = "complex_layout"     # 复杂布局PDF（多栏、公式、表格多）
     PPT_CONVERTED = "ppt_converted"       # PPT/演示文稿转换生成的PDF
+    TOC_PAGE = "toc_page"                 # 目录页
 
 # ======================================
 # 处理优先级标记定义
@@ -71,8 +72,44 @@ DEFAULT_CONFIG: Dict = {
         "complex_layout": "hybrid",
         "cid_font_pdf": "vlm",
         "ppt_converted": "ppt_special"
-    }
+    },
+
+    # TOC检测配置
+    "enable_toc_detection": True,
+    "toc_score_threshold": 0.52,  # 适配复杂目录的默认阈值
+    "toc_ppt_score_threshold": 0.48,  # PPT目录阈值更低
+    "toc_keyword_weight": 0.30,  # 进一步提高关键词权重，有目录标题优先判定
+    "toc_page_number_weight": 0.30,  # 页码特征权重，支持跨行检测
+    "toc_leader_line_weight": 0.05,  # 降低引导线权重，很多中文目录不用引导点
+    "toc_indentation_weight": 0.05,
+    "toc_structure_weight": 0.30,
+    "toc_context_weight": 0.05,  # 位置权重，配合分段锚点使用局部位置评分
+    "max_toc_page_position": 1.0,  # 允许目录出现在文档任意位置，兼容合并PDF中多个子报告的目录
+    "max_toc_page_range": 6  # 目录最大页码范围（1索引），超过此范围的页面会降低置信度
 }
+
+# ======================================
+# TOC检测相关模式定义
+# ======================================
+# 目录关键词
+TOC_KEYWORDS = {
+    "zh": ["目录", "目次", "大纲", "议程"],
+    "en": ["Contents", "Table of Contents", "TOC", "Agenda", "Outline"]
+}
+
+# 页码匹配模式
+PAGE_NUMBER_PATTERNS = [
+    r'\d+$',  # 阿拉伯数字结尾
+    r'[ivxlcdm]+$',  # 小写罗马数字
+    r'[IVXLCDM]+$',  # 大写罗马数字
+    r'第\s*[一二三四五六七八九十百千\d]+\s*页$',  # 中文页码格式
+    r'\d+-\d+$',  # 章节-页码格式
+    r'P\s*\d+$',  # P123格式
+    r'Page\s*\d+$'  # Page 123格式
+]
+
+# 目录引导线模式
+LEADER_LINE_PATTERN = r'\.{4,}|\s{4,}'  # 4个以上点或4个以上空格
 
 # ======================================
 # 版本信息

@@ -21,7 +21,15 @@ pdf_router是一个**纯CPU运行、零依赖MinerU**的智能PDF路由组件，
 ✅ **完全向后兼容**：v2.0.0版本100%兼容v1.1.0版本接口，升级无需修改代码
 
 ## 🎯 v2.0.0 新增功能
-### 1. 单页PDF评估能力（全新功能）
+### 1. 目录页检测功能（全新功能）
+支持智能检测PDF中的目录（TOC）页：
+- 多语言支持：中英文目录关键词识别（目录、目次、Contents等）
+- 多格式识别：支持文档型目录和PPT转换型目录
+- 页码范围约束：默认只关注前6页，减少误报
+- 连续页筛选：自动保留最前面的连续目录页
+- 支持合并PDF：通过分段锚点机制处理多个子报告的场景
+
+### 2. 单页PDF评估能力（全新功能）
 支持输入单页PDF路径或二进制内容，返回：
 - 单页完整特征：宽高、宽高比、图片占比、字符数、CID字体检测等
 - 智能标记：7种PDF类型标记
@@ -29,7 +37,7 @@ pdf_router是一个**纯CPU运行、零依赖MinerU**的智能PDF路由组件，
 - 推荐后端：自动匹配最优解析后端
 - 定制化处理建议：根据页面特征给出具体的处理方案建议
 
-### 2. 代码架构优化
+### 3. 代码架构优化
 - 模块化拆分：按职责拆分为配置、特征提取、规则引擎、标记生成、适配层等模块
 - 可扩展性大幅提升：新增识别规则、标记类型无需修改核心流程
 - 可维护性提升：代码结构清晰，分层明确，便于二次开发
@@ -92,6 +100,32 @@ print("推荐后端：", result["recommended_backend"])
 print("处理建议：", result["processing_suggestions"])
 ```
 
+### 新增目录页检测使用
+```python
+from pdf_router.api.toc_api import TocDetector
+
+# 初始化目录检测器
+detector = TocDetector()
+
+# 方式1：从路径检测目录页
+results = detector.detect_from_path("example.pdf")
+for page_result in results:
+    if page_result["is_toc_page"]:
+        print(f"页码 {page_result['page_index'] + 1} 是目录页，置信度: {page_result['confidence']}")
+
+# 方式2：获取连续目录页标识列表（推荐用于实际应用）
+toc_pages = detector.get_continuous_toc_pages_from_path("example.pdf")
+# toc_pages 是一个长度等于PDF页数的列表，每个元素为True/False
+for i, is_toc in enumerate(toc_pages):
+    if is_toc:
+        print(f"页码 {i + 1} 是连续目录页")
+
+# 方式3：从二进制内容检测
+# with open("example.pdf", "rb") as f:
+#     pdf_bytes = f.read()
+# toc_pages = detector.get_continuous_toc_pages(pdf_bytes)
+```
+
 ### Ray分布式批量使用（完全兼容）
 ```python
 import ray
@@ -120,11 +154,15 @@ for item in mapped_ds.take_all():
 ### 自定义配置
 ```python
 custom_config = {
+    # PDF路由配置
     "scan_pdf_threshold": 0.5,  # 调整扫描版判定阈值
     "ppt_marker_score_threshold": 0.8,  # 调整PPT识别阈值，降低误判率
     "backend_preference": {
         "ppt_converted": "your_custom_ppt_model"  # 自定义PPT类型的推荐后端
-    }
+    },
+    # TOC检测配置
+    "max_toc_page_range": 10,  # 调整目录最大页码范围（默认6页）
+    "toc_score_threshold": 0.5,  # 调整目录检测置信度阈值（默认0.52）
 }
 
 # 整文档路由器
@@ -132,6 +170,10 @@ router = PdfRouter(custom_config)
 
 # 单页路由器，共用同一套配置体系
 page_router = SinglePagePdfRouter(custom_config)
+
+# 目录检测器，共用同一套配置体系
+from pdf_router.api.toc_api import TocDetector
+toc_detector = TocDetector(custom_config)
 ```
 
 ## 🏷️ 支持的标记说明

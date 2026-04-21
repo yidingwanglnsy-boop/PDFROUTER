@@ -29,9 +29,9 @@
 4. **侵入性改造难**：现有解析系统改造需要修改大量核心代码，风险高、周期长
 
 ### 1.2 版本演进
-- v1.0.0：基础版本，支持7类PDF识别和打标
+- v1.0.0：基础版本，支持7类PDF识别和（打标）
 - v1.1.0：新增纯CPU支持、Ray Data适配、PPT转PDF识别
-- v2.0.0：模块化重构，移除MinerU依赖，基于PyMuPDF纯开源实现，新增单页PDF评估能力，架构可扩展性大幅提升
+- v2.0.0：模块化重构，移除MinerU依赖，基于PyMuPDF纯开源实现，新增单页PDF评估能力和目录页检测功能，架构可扩展性大幅提升
 
 ---
 
@@ -63,6 +63,7 @@
 ┌─────────────────────────────────────────────────────┐
 │                     对外API层                        │
 │  整文档评估API(PdfRouter)  │ 单页评估API(SinglePagePdfRouter) │
+│  目录检测API(TocDetector)                            │
 ├─────────────────────────────────────────────────────┤
 │                     适配层                          │
 │  PDF解析库适配  │ Ray分布式适配  │ 第三方系统适配 │
@@ -110,6 +111,23 @@ PDF路径/bytes输入
 单页评估结果输出
 ```
 
+#### 目录检测数据流
+```
+PDF路径/bytes输入
+    ↓
+[逐页遍历] → 提取每页的TOC特征
+    ↓
+[页码范围过滤] → 应用页码范围约束（默认前6页）
+    ↓
+[规则判定] → 关键词检测/页码模式识别/引导线识别/结构分析
+    ↓
+[连续页筛选] → 保留最前面的连续目录页
+    ↓
+[分段锚点重评分] → 处理合并PDF中的多个子报告
+    ↓
+返回每页的目录检测结果
+```
+
 ---
 
 ## 4. 核心模块详细设计
@@ -135,12 +153,25 @@ PDF路径/bytes输入
     "ppt_image_ratio_threshold": 0.6, # PPT图片占比阈值（通常PPT图片占比高）
     "ppt_avg_char_threshold": 100,   # PPT平均每页字符数阈值（通常PPT文字少）
     "ppt_marker_score_threshold": 0.5, # PPT识别总分阈值
-    
+
+    # TOC检测配置
+    "enable_toc_detection": True,    # 是否启用TOC检测
+    "toc_score_threshold": 0.52,    # TOC检测置信度阈值
+    "toc_ppt_score_threshold": 0.48,  # PPT类型TOC阈值更低
+    "toc_keyword_weight": 0.30,      # 关键词检测权重
+    "toc_page_number_weight": 0.30,  # 页码模式权重
+    "toc_leader_line_weight": 0.05,  # 引导线权重
+    "toc_indentation_weight": 0.05,  # 缩进一致性权重
+    "toc_structure_weight": 0.30,   # 结构特征权重
+    "toc_context_weight": 0.05,     # 位置权重
+    "max_toc_page_position": 1.0,    # 允许目录出现在文档任意位置
+    "max_toc_page_range": 6          # 目录最大页码范围（1索引），超过此范围的页面会降低置信度
+
     # 功能开关
     "enable_ppt_detection": True,    # 是否启用PPT识别
     "enable_layout_analysis": True,  # 是否启用布局复杂度分析
     "max_sample_pages": 20,          # 整文档最多采样页数，减少CPU消耗
-    
+
     # 后端映射规则
     "backend_preference": {
         "text_pdf": "pipeline",

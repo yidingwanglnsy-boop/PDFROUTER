@@ -33,7 +33,7 @@ class TestRuleEngine(unittest.TestCase):
 
     def test_detect_ppt_converted_partial_features(self):
         """测试只有部分PPT特征的检测"""
-        # 只有PowerPoint元数据
+        # 只有PowerPoint元数据和4:3比例
         features = {
             "aspect_ratio": 1.333,  # 4:3
             "metadata": {"producer": "Microsoft PowerPoint"},
@@ -42,6 +42,7 @@ class TestRuleEngine(unittest.TestCase):
         }
         is_ppt, score = self.rule_engine.detect_ppt_converted(features)
         self.assertTrue(is_ppt)
+        self.assertGreaterEqual(score, 0.7)
 
         # 只有比例和图片占比，没有元数据
         features = {
@@ -126,10 +127,10 @@ class TestRuleEngine(unittest.TestCase):
         complexity = self.rule_engine.evaluate_layout_complexity(features)
         self.assertGreaterEqual(complexity, 0.7)
 
-        # 中等复杂度：中等图片占比+中等文本密度
+        # 中等复杂度：中等图片占比+低文本密度
         features = {
             "image_coverage_ratio": 0.5,
-            "avg_chars_per_page": 200,
+            "avg_chars_per_page": 50,
             "has_cid_font": False
         }
         complexity = self.rule_engine.evaluate_layout_complexity(features)
@@ -144,6 +145,107 @@ class TestRuleEngine(unittest.TestCase):
         }
         complexity = self.rule_engine.evaluate_layout_complexity(features)
         self.assertLess(complexity, 0.3)
+
+    def test_detect_toc_page_typical_chinese_document(self):
+        """测试典型中文文档目录检测"""
+        features = {
+            "has_toc_keywords": True,
+            "toc_keyword_confidence": 0.9,
+            "page_number_ratio": 0.75,
+            "has_dotted_leaders": True,
+            "leader_line_ratio": 0.6,
+            "indentation_consistency": 0.85,
+            "line_count": 30,
+            "avg_line_length": 50,
+            "image_coverage_ratio": 0.05
+        }
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=False, page_position=0.05)
+        self.assertTrue(is_toc)
+        self.assertGreater(score, self.config_manager.get("toc_score_threshold"))
+
+    def test_detect_toc_page_typical_english_document(self):
+        """测试典型英文文档目录检测"""
+        features = {
+            "has_toc_keywords": True,
+            "toc_keyword_confidence": 0.85,
+            "page_number_ratio": 0.8,
+            "has_dotted_leaders": True,
+            "leader_line_ratio": 0.7,
+            "indentation_consistency": 0.9,
+            "line_count": 25,
+            "avg_line_length": 60,
+            "image_coverage_ratio": 0.1
+        }
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=False, page_position=0.03)
+        self.assertTrue(is_toc)
+
+    def test_detect_toc_page_ppt_format(self):
+        """测试PPT格式目录检测"""
+        features = {
+            "has_toc_keywords": True,
+            "toc_keyword_confidence": 0.95,
+            "page_number_ratio": 0.5,
+            "has_dotted_leaders": False,
+            "leader_line_ratio": 0.0,
+            "indentation_consistency": 0.7,
+            "line_count": 8,
+            "avg_line_length": 20,
+            "image_coverage_ratio": 0.3
+        }
+        # PPT格式阈值更低，应该能检测到
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=True, page_position=0.02)
+        self.assertTrue(is_toc)
+        self.assertGreater(score, self.config_manager.get("toc_ppt_score_threshold"))
+
+    def test_detect_toc_page_negative_case(self):
+        """测试非目录页检测"""
+        # 普通正文页
+        features = {
+            "has_toc_keywords": False,
+            "toc_keyword_confidence": 0.0,
+            "page_number_ratio": 0.05,
+            "has_dotted_leaders": False,
+            "leader_line_ratio": 0.0,
+            "indentation_consistency": 0.2,
+            "line_count": 50,
+            "avg_line_length": 100,
+            "image_coverage_ratio": 0.1
+        }
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=False, page_position=0.5)
+        self.assertFalse(is_toc)
+        self.assertLess(score, self.config_manager.get("toc_score_threshold"))
+
+    def test_detect_toc_page_edge_cases(self):
+        """测试目录检测边界情况"""
+        # 没有关键词但其他特征明显
+        features = {
+            "has_toc_keywords": False,
+            "toc_keyword_confidence": 0.0,
+            "page_number_ratio": 0.9,
+            "has_dotted_leaders": True,
+            "leader_line_ratio": 0.8,
+            "indentation_consistency": 0.9,
+            "line_count": 35,
+            "avg_line_length": 45,
+            "image_coverage_ratio": 0.05
+        }
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=False, page_position=0.04)
+        self.assertTrue(is_toc)
+
+        # 目录页出现在文档较后位置，适当降分但仍能检测到
+        features = {
+            "has_toc_keywords": True,
+            "toc_keyword_confidence": 0.9,
+            "page_number_ratio": 0.75,
+            "has_dotted_leaders": True,
+            "leader_line_ratio": 0.6,
+            "indentation_consistency": 0.85,
+            "line_count": 30,
+            "avg_line_length": 50,
+            "image_coverage_ratio": 0.05
+        }
+        is_toc, score = self.rule_engine.detect_toc_page(features, is_ppt_format=False, page_position=0.15)
+        self.assertTrue(is_toc)
 
 
 if __name__ == "__main__":

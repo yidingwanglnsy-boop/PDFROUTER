@@ -38,7 +38,7 @@ class ConfigManager:
         """
         # 阈值类参数校验，确保在0~1范围内
         threshold_keys = [
-            "scan_pdf_threshold", "text_density_threshold", "cid_font_threshold",
+            "scan_pdf_threshold", "cid_font_threshold",
             "complex_layout_threshold", "ppt_aspect_ratio_min", "ppt_aspect_ratio_max",
             "ppt_image_ratio_threshold", "ppt_marker_score_threshold"
         ]

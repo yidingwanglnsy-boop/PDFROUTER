@@ -9,6 +9,7 @@ v2.0.0版本新增功能：
 """
 from .api.router_api import PdfRouter
 from .api.single_page_api import SinglePagePdfRouter
+from .api.toc_api import TocDetector
 from .adapters.ray_adapter import RayPdfRouterMapper
 from .constants import (
     PdfTypeMark,
@@ -22,6 +23,7 @@ __author__ = "Opendatalab"
 __all__ = [
     "PdfRouter",
     "SinglePagePdfRouter",
+    "TocDetector",
     "RayPdfRouterMapper",
     "PdfTypeMark",
     "ProcessPriorityMark",

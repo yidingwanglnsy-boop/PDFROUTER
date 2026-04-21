@@ -5,8 +5,10 @@ PDF特征提取适配层
 封装所有PDF特征提取底层调用，隔离上层业务逻辑和底层依赖变化
 """
 import fitz  # pymupdf
-from typing import Optional, Tuple, List
+import re
+from typing import Optional, Tuple, List, Dict
 import io
+from pdf_router.constants import PAGE_NUMBER_PATTERNS, LEADER_LINE_PATTERN
 
 
 class MinerUAdapter:
@@ -128,3 +130,122 @@ class MinerUAdapter:
             return False
         except Exception:
             return False
+
+    @staticmethod
+    def extract_text_with_positions(page: fitz.Page) -> List[Dict]:
+        """
+        提取页面文本及其位置和字体信息
+        :param page: pymupdf页面对象
+        :return: 文本块列表，每个块包含text, x0, y0, x1, y1, font_size
+        """
+        try:
+            blocks = page.get_text("dict")["blocks"]
+            text_blocks = []
+            for block in blocks:
+                if block["type"] == 0:  # 文本块
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            text_blocks.append({
+                                "text": span["text"].strip(),
+                                "x0": span["bbox"][0],
+                                "y0": span["bbox"][1],
+                                "x1": span["bbox"][2],
+                                "y1": span["bbox"][3],
+                                "font_size": span["size"]
+                            })
+            return text_blocks
+        except Exception:
+            return []
+
+    @staticmethod
+    def detect_page_number_patterns(lines: List[str]) -> Tuple[float, int]:
+        """
+        检测行末尾的页码模式，支持跨行页码（标题在上一行，页码在下一行）
+        :param lines: 文本行列表
+        :return: (页码行占比, 页码行数量)
+        """
+        if not lines:
+            return 0.0, 0
+
+        # 预编译正则表达式
+        patterns = [re.compile(p) for p in PAGE_NUMBER_PATTERNS]
+        page_number_lines = 0
+        # 新增：统计跨行页码对
+        cross_line_page_pairs = 0
+
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+            # 情况1：当前行末尾本身就是页码（常规模式）
+            is_page_line = False
+            for pattern in patterns:
+                if pattern.search(line):
+                    page_number_lines += 1
+                    is_page_line = True
+                    break
+
+            # 情况2：跨行模式：当前行是短标题（<30字符），下一行是纯数字页码
+            if not is_page_line and i < len(lines)-1 and len(line) < 30 and line:
+                next_line = lines[i+1].strip()
+                if next_line and next_line.isdigit() and len(next_line) <= 3:
+                    # 标题 + 独立页码行，计数
+                    cross_line_page_pairs += 1
+
+        # 跨行模式的页码对权重和常规行一样
+        total_page_indicators = page_number_lines + cross_line_page_pairs
+        ratio = total_page_indicators / len(lines) if lines else 0.0
+        return ratio, total_page_indicators
+
+    @staticmethod
+    def detect_dotted_leaders(lines: List[str]) -> Tuple[float, int]:
+        """
+        检测目录引导线模式
+        :param lines: 文本行列表
+        :return: (引导线行占比, 引导线行数量)
+        """
+        if not lines:
+            return 0.0, 0
+
+        pattern = re.compile(LEADER_LINE_PATTERN)
+        leader_lines = 0
+
+        for line in lines:
+            if pattern.search(line):
+                leader_lines += 1
+
+        ratio = leader_lines / len(lines) if lines else 0.0
+        return ratio, leader_lines
+
+    @staticmethod
+    def calculate_indentation_consistency(blocks: List[Dict]) -> float:
+        """
+        计算行缩进的一致性
+        :param blocks: 带位置信息的文本块列表
+        :return: 一致性分数（0~1），越高表示缩进越一致
+        """
+        if len(blocks) < 5:
+            return 0.0
+
+        # 收集所有文本块的x0坐标（左侧缩进）
+        x0_values = [block["x0"] for block in blocks if block["text"].strip()]
+
+        if len(x0_values) < 5:
+            return 0.0
+
+        # 按x0值分组，统计每个缩进级别的数量
+        from collections import defaultdict
+        indent_groups = defaultdict(int)
+        for x0 in x0_values:
+            # 按10像素精度分组，减少噪声
+            rounded_x0 = round(x0, -1)
+            indent_groups[rounded_x0] += 1
+
+        # 计算最大组的占比作为一致性分数
+        if not indent_groups:
+            return 0.0
+
+        max_count = max(indent_groups.values())
+        consistency = max_count / len(x0_values)
+
+        return consistency

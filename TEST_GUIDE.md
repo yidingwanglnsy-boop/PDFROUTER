@@ -155,6 +155,25 @@ print(f"标记：{result['marks']}")
 print(f"推荐后端：{result['recommended_backend']}")
 ```
 
+### 目录检测测试使用
+```python
+from pdf_router.api.toc_api import TocDetector
+
+# 初始化目录检测器
+detector = TocDetector()
+
+# 测试目录页检测
+results = detector.detect_from_path("example.pdf")
+for page_result in results:
+    if page_result["is_toc_page"]:
+        print(f"页码 {page_result['page_index'] + 1} 是目录页，置信度: {page_result['confidence']}")
+
+# 测试连续目录页筛选功能
+toc_pages = detector.get_continuous_toc_pages_from_path("example.pdf")
+toc_page_numbers = [i + 1 for i, is_toc in enumerate(toc_pages) if is_toc]
+print(f"连续目录页: {toc_page_numbers}")
+```
+
 ---
 
 ## 测试用例清单
@@ -167,7 +186,8 @@ print(f"推荐后端：{result['recommended_backend']}")
 | `tests/test_mark_generator.py` | 标记生成逻辑测试 | 11 |
 | `tests/test_router.py` | 整文档路由API测试 | 7 |
 | `tests/test_single_page.py` | 单页路由功能测试 | 3 |
-| **合计** | | **36** |
+| `tests/test_toc_api.py` | 目录检测API测试 | 5 |
+| **合计** | | **41** |
 
 ### 核心测试用例说明
 | 测试点 | 覆盖范围 | 预期结果 |
@@ -178,9 +198,10 @@ print(f"推荐后端：{result['recommended_backend']}")
 | 布局复杂度评估 | 规则引擎 | 不同复杂度的页面得分符合预期 |
 | 标记生成逻辑 | 标记生成 | 7类PDF类型标记正确，优先级判定准确，后端映射正确 |
 | 单页评估功能 | API层 | 单页特征提取正确，支持路径和bytes两种输入方式 |
-| 整文档路由API | API层 | 对外接口稳定，返回结构符合规范，错误处理正常 |
+| 整文档路由API | | 对外接口稳定，返回结构符合规范，错误处理正常 |
 | 无效路径处理 | API层 | 传入不存在的路径时正确抛出FileNotFoundError异常 |
 | Ray Mapper功能 | 适配层 | 批量处理正确，无需Ray即可导入，错误处理机制正常 |
+| 目录检测API | TOC检测 | 支持中英文目录识别，页码范围约束生效，连续页筛选正确 |
 
 ### 真实场景测试用例
 | 测试场景 | 测试点 | 预期结果 |
@@ -192,6 +213,8 @@ print(f"推荐后端：{result['recommended_backend']}")
 | 包含CID字体的PDF | CID字体识别 | 正确标记为cid_font_pdf，推荐vlm后端 |
 | 多栏复杂排版PDF | 复杂布局识别 | 正确标记为complex_layout，推荐hybrid后端 |
 | 混合图文PDF | 混合类型识别 | 正确标记为mixed_pdf，推荐hybrid后端 |
+| 带目录的PDF | TOC检测 | 正确识别目录页，支持中英文关键词 |
+| 多页目录PDF | 连续页筛选 | 保留最前面的连续目录页 |
 | 批量PDF处理 | Ray分布式 | 批量处理正确，性能符合预期 |
 
 ---
